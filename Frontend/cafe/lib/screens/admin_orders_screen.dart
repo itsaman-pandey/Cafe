@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -13,7 +14,8 @@ class AdminOrdersScreen extends StatefulWidget {
 
 class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   bool isLoading = true;
-  List<dynamic> orders = [];
+  List<dynamic> pendingOrders = [];
+  List<dynamic> completedOrders = [];
   double totalSales = 0;
   Map<int, String> productNames = {};
 
@@ -27,11 +29,12 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     setState(() => isLoading = true);
 
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
+    final token = prefs.getString('access_token_for_api'); // Barista token
     if (token == null) return;
 
     try {
       // Fetch products
+
       final productsResponse = await http.get(
         Uri.parse(ApiConstants.products),
         headers: {"Authorization": "Bearer $token"},
@@ -43,38 +46,70 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
         };
       }
 
-      // Fetch orders
-      final ordersResponse = await http.get(
-        Uri.parse("${ApiConstants.baseUrl}/orders/orders/"),
+      final now = DateTime.now();
+      List<dynamic> fetchedPending = [];
+      List<dynamic> fetchedCompleted = [];
+
+      // Fetch pending orders
+      final pendingResponse = await http.get(
+        Uri.parse("${ApiConstants.baseUrl}/barista/orders?status=pending"),
         headers: {"Authorization": "Bearer $token"},
       );
 
-      if (ordersResponse.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(ordersResponse.body);
-        final now = DateTime.now();
-
-        // Only current month orders
-        final currentMonthOrders = data.where((order) {
+      if (pendingResponse.statusCode == 200) {
+        fetchedPending = (jsonDecode(pendingResponse.body) as List).where((
+          order,
+        ) {
           final date =
               DateTime.tryParse(order["created_at"] ?? "") ?? DateTime(2000);
           return date.month == now.month && date.year == now.year;
         }).toList();
-
-        setState(() {
-          orders = currentMonthOrders;
-          totalSales = currentMonthOrders.fold<double>(0, (sum, order) {
-            final price = order["total_price"];
-            double priceValue = 0;
-            if (price is num) priceValue = price.toDouble();
-            if (price is String) priceValue = double.tryParse(price) ?? 0;
-            return sum + priceValue;
-          });
-        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed: ${ordersResponse.body}")),
+          SnackBar(
+            content: Text("Pending orders failed: ${pendingResponse.body}"),
+          ),
         );
       }
+
+      // Fetch completed orders
+      final completedResponse = await http.get(
+        Uri.parse("${ApiConstants.baseUrl}/barista/orders/completed"),
+        headers: {"Authorization": "Bearer $token"},
+      );
+      if (completedResponse.statusCode == 200) {
+        print("\n\n\n\n\n");
+        print(completedResponse.body);
+        print("\n\n\n\n\n");
+        fetchedCompleted = (jsonDecode(completedResponse.body) as List).where((
+          order,
+        ) {
+          final date =
+              DateTime.tryParse(order["created_at"] ?? "") ?? DateTime(2000);
+          return date.month == now.month && date.year == now.year;
+        }).toList();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Completed orders failed: ${completedResponse.body}"),
+          ),
+        );
+      }
+
+      setState(() {
+        pendingOrders = fetchedPending;
+        completedOrders = fetchedCompleted;
+        totalSales = [...fetchedPending, ...fetchedCompleted].fold<double>(0, (
+          sum,
+          order,
+        ) {
+          final price = order["total_price"];
+          double priceValue = 0;
+          if (price is num) priceValue = price.toDouble();
+          if (price is String) priceValue = double.tryParse(price) ?? 0;
+          return sum + priceValue;
+        });
+      });
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -194,13 +229,6 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pendingOrders = orders
-        .where((o) => o['status'].toString().toLowerCase() == 'pending')
-        .toList();
-    final completedOrders = orders
-        .where((o) => o['status'].toString().toLowerCase() == 'completed')
-        .toList();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("Orders & Sales"),

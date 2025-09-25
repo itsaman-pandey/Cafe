@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cafe/constants/api_constants.dart';
 
@@ -74,6 +76,12 @@ class _CompletedOrdersScreenState extends State<CompletedOrdersScreen> {
 
   Widget buildOrderCard(Map<String, dynamic> order) {
     final items = order['items'] as List<dynamic>;
+    final createdAt = DateTime.parse(
+      order['created_at'],
+    ); // parse string to DateTime
+    final formatted = DateFormat(
+      'yyyy-MM-dd HH:mm',
+    ).format(createdAt); // remove milliseconds
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
@@ -129,7 +137,7 @@ class _CompletedOrdersScreenState extends State<CompletedOrdersScreen> {
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
           Text(
-            "Placed on: ${order['created_at']}",
+            "Placed on: ${formatted}",
             style: const TextStyle(fontSize: 13, color: Colors.grey),
           ),
           const SizedBox(height: 10),
@@ -171,17 +179,56 @@ class _CompletedOrdersScreenState extends State<CompletedOrdersScreen> {
         title: const Text("Completed Orders"),
         backgroundColor: Colors.green.shade700,
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : orders.isEmpty
-          ? const Center(child: Text("No completed orders"))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: orders.length,
-              itemBuilder: (context, index) {
-                return buildOrderCard(orders[index]);
-              },
+      body: Stack(
+        children: [
+          // Dark overlay background
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.4)),
+          ),
+          // Glassy container
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: orders.isEmpty
+                        ? const Center(
+                            child: Text(
+                              "No completed orders",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: orders.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                child: buildOrderCard(orders[index]),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+              ),
             ),
+          ),
+        ],
+      ),
     );
   }
 }

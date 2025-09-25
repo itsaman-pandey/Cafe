@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cafe/constants/api_constants.dart';
+import 'dart:ui'; // for ImageFilter
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -184,8 +186,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  String capitalizeEachWord(String name) {
+    if (name.isEmpty) return "";
+    return name
+        .split(" ")
+        .map(
+          (word) => word.isNotEmpty
+              ? "${word[0].toUpperCase()}${word.substring(1).toLowerCase()}"
+              : "",
+        )
+        .join(" ");
+  }
+
   Widget buildProfileCard() {
     if (user == null) return const Center(child: CircularProgressIndicator());
+
+    final displayName = capitalizeEachWord(user?["name"] ?? "Unknown");
+    final imageUrl =
+        "https://i.ibb.co/HTTFPcPn/images.jpg"; // provide image URL or asset path here
 
     return Stack(
       children: [
@@ -212,14 +230,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
               CircleAvatar(
                 radius: 42,
                 backgroundColor: Colors.white,
-                child: Text(
-                  (user?["name"]?[0] ?? "U").toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.brown,
-                  ),
-                ),
+                backgroundImage: imageUrl != null
+                    ? NetworkImage(imageUrl)
+                    : null, // use AssetImage if local
+                child: imageUrl == null
+                    ? Text(
+                        displayName.isNotEmpty
+                            ? displayName
+                                  .split(" ")
+                                  .map((e) => e[0])
+                                  .join()
+                                  .toUpperCase()
+                            : "U",
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.brown,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 18),
               Expanded(
@@ -227,7 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      user?["name"] ?? "Unknown",
+                      displayName,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -327,7 +356,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : isCompleted
         ? Colors.green
         : Colors.grey;
+    final createdAt = DateTime.parse(
+      order['created_at'],
+    ); // parse string to DateTime
 
+    final formatted = DateFormat('yyyy-MM-dd HH:mm').format(createdAt);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 500),
       width: double.infinity,
@@ -390,7 +423,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
           ),
           Text(
-            "Placed on: ${order['created_at']}",
+            "Placed on: ${formatted}",
             style: const TextStyle(fontSize: 13, color: Colors.grey),
           ),
           const SizedBox(height: 10),
@@ -427,55 +460,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  //   @override
-  //   Widget build(BuildContext context) {
-  //     final pendingOrdersCount = orders
-  //         .where((o) => o['status'] == 'pending')
-  //         .length;
-
-  //     return Scaffold(
-  //       backgroundColor: Colors.grey[100],
-  //       appBar: AppBar(
-  //         title: const Text("Profile"),
-  //         backgroundColor: const Color.fromARGB(255, 187, 129, 109),
-  //       ),
-  //       body: SingleChildScrollView(
-  //         padding: const EdgeInsets.all(16),
-  //         child: Column(
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             buildProfileCard(),
-  //             const SizedBox(height: 12),
-  //             Text(
-  //               userRole == 'barista' ? "Pending Orders" : "Your Orders",
-  //               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-  //             ),
-  //             const SizedBox(height: 8),
-  //             isLoadingOrders
-  //                 ? const Center(child: CircularProgressIndicator())
-  //                 : userRole == 'barista'
-  //                 ? Text(
-  //                     "$pendingOrdersCount pending order(s)",
-  //                     style: const TextStyle(
-  //                       fontSize: 18,
-  //                       fontWeight: FontWeight.bold,
-  //                     ),
-  //                   )
-  //                 : orders.isEmpty
-  //                 ? const Text("No orders yet")
-  //                 : Column(children: orders.map(buildOrderCard).toList()),
-  //           ],
-  //         ),
-  //       ),
-  //     );
-  //   }
-  // }
   @override
   Widget build(BuildContext context) {
     final pendingOrders = orders
         .where((o) => o['status'] == 'pending')
         .toList();
-    final pendingOrdersCount = pendingOrders.length;
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -483,103 +472,224 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text("Profile"),
         backgroundColor: const Color.fromARGB(255, 187, 129, 109),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            buildProfileCard(),
-            const SizedBox(height: 12),
+      body: Stack(
+        children: [
+          // Background image
+          Positioned.fill(
+            child: Image.asset("assets/img1.webp", fit: BoxFit.cover),
+          ),
 
-            // Admin view
-            if (userRole == 'admin') ...[
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedScale(
-                      scale: 1.05,
-                      duration: const Duration(milliseconds: 600),
-                      curve: Curves.easeInOut,
-                      child: const Text(
-                        "Pending Orders",
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.brown,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(
-                        begin: 0,
-                        end: pendingOrdersCount.toDouble(),
-                      ),
-                      duration: const Duration(seconds: 1),
-                      builder: (context, value, child) {
-                        return Text(
-                          "${value.toInt()} pending order(s)",
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange,
+          // Dark overlay
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.4)),
+          ),
+
+          // Glassy card starting BELOW AppBar
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(
+              top: 16,
+              left: 16,
+              right: 16,
+              bottom: 16,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Profile Card (fixed at top of card)
+                      buildProfileCard(),
+                      const SizedBox(height: 16),
+
+                      // Role-based greeting or orders
+                      if (userRole == 'admin' || userRole == 'barista') ...[
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                userRole == 'admin'
+                                    ? "Hello Admin !"
+                                    : "Hello Barista !",
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                userRole == 'admin'
+                                    ? "“Success is the sum of small efforts repeated day in and day out.”"
+                                    : "“Great things never come from comfort zones. Keep brewing excellence!”",
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.orangeAccent,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Image.asset('assets/gif1.gif', height: 150),
+                              const SizedBox(height: 204),
+                            ],
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    AnimatedOpacity(
-                      opacity: 1.0,
-                      duration: const Duration(seconds: 1),
-                      child: Container(
-                        width: 120,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.orangeAccent,
-                          borderRadius: BorderRadius.circular(10),
                         ),
-                      ),
-                    ),
-                  ],
+                      ] else ...[
+                        const Text(
+                          "Your Orders",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height:
+                              400, // give fixed height to make orders scrollable
+                          child: orders.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    "No orders yet",
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount: orders.length,
+                                  itemBuilder: (context, index) {
+                                    return buildOrderCard(orders[index]);
+                                  },
+                                ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ]
-            // Barista view
-            else if (userRole == 'barista') ...[
-              const Text(
-                "Pending Orders",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "$pendingOrdersCount pending order(s)",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (pendingOrders.isNotEmpty)
-                Column(children: pendingOrders.map(buildOrderCard).toList())
-              else
-                const Text("No pending orders"),
-            ]
-            // Client view
-            else ...[
-              const Text(
-                "Your Orders",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              if (orders.isEmpty)
-                const Text("No orders yet")
-              else
-                Column(children: orders.map(buildOrderCard).toList()),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   final pendingOrders = orders
+  //       .where((o) => o['status'] == 'pending')
+  //       .toList();
+  //   final pendingOrdersCount = pendingOrders.length;
+
+  //   return Scaffold(
+  //     backgroundColor: Colors.grey[100],
+  //     appBar: AppBar(
+  //       title: const Text("Profile"),
+  //       backgroundColor: const Color.fromARGB(255, 187, 129, 109),
+  //     ),
+  //     body: SingleChildScrollView(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           buildProfileCard(),
+  //           const SizedBox(height: 12),
+
+  //           // Admin view
+  //           // Admin view
+  //           if (userRole == 'admin') ...[
+  //             Center(
+  //               child: Column(
+  //                 mainAxisSize: MainAxisSize.min,
+  //                 children: [
+  //                   SizedBox(height: 90),
+  //                   Text(
+  //                     "Hello Admin !",
+  //                     style: TextStyle(
+  //                       fontSize: 28,
+  //                       fontWeight: FontWeight.bold,
+  //                       color: Colors.brown,
+  //                     ),
+  //                   ),
+  //                   SizedBox(height: 30),
+  //                   Text(
+  //                     "“Success is the sum of small efforts repeated day in and day out.”",
+  //                     textAlign: TextAlign.center,
+  //                     style: TextStyle(
+  //                       fontSize: 18,
+  //                       fontStyle: FontStyle.italic,
+  //                       color: Colors.orangeAccent,
+  //                       fontWeight: FontWeight.w500,
+  //                     ),
+  //                   ),
+  //                   SizedBox(height: 40),
+
+  //                   // GIF 2 (same for both, or different if you want)
+  //                   Image.asset('assets/gif1.gif', height: 150),
+  //                 ],
+  //               ),
+  //             ),
+  //           ]
+  //           // Barista view
+  //           else if (userRole == 'barista') ...[
+  //             Center(
+  //               child: Column(
+  //                 mainAxisSize: MainAxisSize.min,
+  //                 children: [
+  //                   SizedBox(height: 90),
+  //                   Text(
+  //                     "Hello Barista !",
+  //                     style: TextStyle(
+  //                       fontSize: 28,
+  //                       fontWeight: FontWeight.bold,
+  //                       color: Colors.brown,
+  //                     ),
+  //                   ),
+  //                   SizedBox(height: 30),
+  //                   Text(
+  //                     "“Great things never come from comfort zones. Keep brewing excellence!”",
+  //                     textAlign: TextAlign.center,
+  //                     style: TextStyle(
+  //                       fontSize: 18,
+  //                       fontStyle: FontStyle.italic,
+  //                       color: Colors.orangeAccent,
+  //                       fontWeight: FontWeight.w500,
+  //                     ),
+  //                   ),
+  //                   SizedBox(height: 40),
+
+  //                   // GIF 2 (same for both, or different if you want)
+  //                   Image.asset('assets/gif1.gif', height: 150),
+  //                 ],
+  //               ),
+  //             ),
+  //           ]
+  //           // Barista view
+  //           // Client view
+  //           else ...[
+  //             const Text(
+  //               "Your Orders",
+  //               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+  //             ),
+  //             const SizedBox(height: 8),
+  //             if (orders.isEmpty)
+  //               const Text("No orders yet")
+  //             else
+  //               Column(children: orders.map(buildOrderCard).toList()),
+  //           ],
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 }
